@@ -42,44 +42,54 @@ class JudicialTechERP {
         const btnArquivo = document.getElementById("btnMenuArquivo");
         const dropdown = document.getElementById("dropdownArquivo");
         
-        btnArquivo.addEventListener("click", (e) => {
-            e.stopPropagation();
-            dropdown.classList.toggle("show");
-        });
+        if (btnArquivo && dropdown) {
+            btnArquivo.onclick = (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle("show");
+            };
+        }
 
-        document.addEventListener("click", () => dropdown.classList.remove("show"));
+        document.addEventListener("click", () => {
+            if (dropdown) dropdown.classList.remove("show");
+        });
 
         // Eventos de Navegação da Sidebar
         document.querySelectorAll(".nav-item").forEach(botao => {
-            botao.addEventListener("click", (e) => {
+            botao.onclick = () => {
                 const targetScreen = botao.getAttribute("data-target");
                 this.mudarTela(targetScreen, botao);
-            });
+            };
         });
 
         // Máscara reativa para valor monetário em tempo de execução
         const inputValor = document.getElementById("valorCobrado");
-        inputValor.addEventListener("input", (e) => {
-            let v = e.target.value.replace(/\D/g, "");
-            v = (v / 100).toFixed(2) + "";
-            v = v.replace(".", ",");
-            v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
-            e.target.value = v ? "R$ " + v : "";
-            this.marcarModificado();
-        });
-
-        // Gatilhos de modificação nos inputs de datas para a Timeline
-        ["dataSolicitada", "dataEntrega", "dataPagamento", "concluido", "impugnado"].forEach(id => {
-            document.getElementById(id).addEventListener("change", () => {
+        if (inputValor) {
+            inputValor.oninput = (e) => {
+                let v = e.target.value.replace(/\D/g, "");
+                v = (v / 100).toFixed(2) + "";
+                v = v.replace(".", ",");
+                v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
+                e.target.value = v ? "R$ " + v : "";
                 this.marcarModificado();
-                this.atualizarTimelineIndividual();
-            });
+            };
+        }
+
+        // Gatilhos de modificação nos inputs para a Timeline
+        ["dataSolicitada", "dataEntrega", "dataPagamento", "concluido", "impugnado"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.onchange = () => {
+                    this.marcarModificado();
+                    this.atualizarTimelineIndividual();
+                };
+            }
         });
     }
 
     mudarTela(screenId, botaoMenu = null) {
         document.querySelectorAll(".tela-section").forEach(s => s.classList.remove("active"));
-        document.getElementById(screenId).classList.add("active");
+        const telaAlvo = document.getElementById(screenId);
+        if (telaAlvo) telaAlvo.classList.add("active");
 
         if (botaoMenu) {
             document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
@@ -89,18 +99,25 @@ class JudicialTechERP {
 
     marcarModificado() {
         this.hasUnsavedChanges = true;
-        document.getElementById("indicadorModificado").style.display = "inline";
+        const ind = document.getElementById("indicadorModificado");
+        if (ind) ind.style.display = "inline";
     }
 
     sincronizarInterfaceGlobal() {
-        document.getElementById("nomeArquivoAtivo").innerText = this.nomeArquivo;
-        document.getElementById("arquivoStatus").style.display = "flex";
-        document.getElementById("indicadorModificado").style.display = this.hasUnsavedChanges ? "inline" : "none";
+        const nomeEl = document.getElementById("nomeArquivoAtivo");
+        const statusEl = document.getElementById("arquivoStatus");
+        const indEl = document.getElementById("indicadorModificado");
+
+        if (nomeEl) nomeEl.innerText = this.nomeArquivo;
+        if (statusEl) statusEl.style.display = "flex";
+        if (indEl) indEl.style.display = this.hasUnsavedChanges ? "inline" : "none";
     }
 
     aplicarTemaSalvo() {
         const tema = this.db.preferences.theme || "light";
-        document.getElementById("configTema").value = tema;
+        const configTemaEl = document.getElementById("configTema");
+        if (configTemaEl) configTemaEl.value = tema;
+        
         if (tema === "dark") document.body.classList.add("dark-mode");
         else document.body.classList.remove("dark-mode");
     }
@@ -113,7 +130,6 @@ class JudicialTechERP {
         this.salvarLocalStorage();
     }
 
-    // PERSISTÊNCIA & OPERAÇÕES DE ARQUIVO JSON
     novoArquivo() {
         if (confirm("Deseja criar um novo banco de dados? Certifique-se de exportar o atual para não perder dados.")) {
             this.db = {
@@ -130,7 +146,10 @@ class JudicialTechERP {
         }
     }
 
-    dispararInputAbrir() { document.getElementById("inputAbrirArquivo").click(); }
+    dispararInputAbrir() { 
+        const el = document.getElementById("inputAbrirArquivo");
+        if (el) el.click(); 
+    }
 
     abrirArquivoJson(event) {
         const arquivo = event.target.files[0];
@@ -146,99 +165,16 @@ class JudicialTechERP {
                     this.hasUnsavedChanges = false;
                     this.salvarLocalStorage();
                     this.init();
+                    this.renderizarHistorico();
                     alert("Banco de dados JSON importado e validado com sucesso!");
                 } else {
                     alert("Erro: Estrutura do arquivo JSON inválida para este sistema.");
                 }
             } catch (err) {
-                alert("Erro catastrófico ao processar a leitura do arquivo JSON.");
+                alert("Erro ao processar a leitura do arquivo JSON.");
             }
         };
         leitor.readAsText(arquivo);
-    }
-
-    importarCSV(event) {
-        const arquivo = event.target.files[0];
-        if (!arquivo) return;
-
-        const leitor = new FileReader();
-        leitor.onload = (e) => {
-            const texto = e.target.result;
-            const linhas = texto.split('\n');
-            let importados = 0;
-
-            // Loop para ler linha por linha (ignorando o cabeçalho na linha 0)
-            for (let i = 1; i < linhas.length; i++) {
-                const linha = linhas[i].trim();
-                if (!linha) continue;
-
-                // O Excel brasileiro separa as colunas do CSV com ponto e vírgula (;)
-                const colunas = linha.split(';');
-
-                // Se a linha estiver vazia ou quebra de formatação, pula
-                if (colunas.length < 5) continue;
-
-                // Funções internas para traduzir a formatação do seu Excel
-                const parseData = (str) => {
-                    if (!str || str.trim() === "") return "";
-                    const partes = str.trim().split('/');
-                    if (partes.length === 3) {
-                        // Converte DD/MM/AAAA para AAAA-MM-DD
-                        return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
-                    }
-                    return "";
-                };
-
-                const parseValor = (str) => {
-                    if (!str || str.trim() === "") return 0;
-                    // Tira o "R$", remove os pontos de milhar e troca vírgula por ponto
-                    let limpo = str.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
-                    return parseFloat(limpo) || 0;
-                };
-
-                const parseBool = (str) => {
-                    return str && str.trim().toLowerCase() === 'sim';
-                };
-
-                // Monta o objeto do processo mapeando as letras das colunas da sua imagem
-                const novoProcesso = {
-                    id: Math.random().toString(36).substring(2, 9),
-                    realizador: colunas[0] ? colunas[0].trim() : "",
-                    numeroProcesso: colunas[1] ? colunas[1].trim() : "Pendente/Sem Número",
-                    parte: colunas[2] ? colunas[2].trim() : "",
-                    reu: colunas[3] ? colunas[3].trim() : "",
-                    advogada: colunas[4] ? colunas[4].trim() : "",
-                    dataSolicitada: parseData(colunas[5]),
-                    orgaoJulgador: colunas[6] ? colunas[6].trim() : "",
-                    tipoAcao: colunas[7] ? colunas[7].trim() : "",
-                    documentacaoDisponibilizada: colunas[8] ? colunas[8].trim() : "",
-                    valorCobrado: parseValor(colunas[9]),
-                    horasTrabalhadas: parseInt(colunas[10]) || 0, // Sua coluna 'S'
-                    observacoes: colunas[11] ? colunas[11].trim() : "",
-                    dataEntrega: parseData(colunas[12]),
-                    dataPagamento: parseData(colunas[13]),
-                    concluido: parseBool(colunas[14]),
-                    impugnado: parseBool(colunas[15])
-                };
-
-                this.db.processes.push(novoProcesso);
-                importados++;
-            }
-
-            if (importados > 0) {
-                this.registrarLog("IMPORTAÇÃO LOTE", `Migração de ${importados} processos via planilha Excel (CSV).`);
-                this.hasUnsavedChanges = true;
-                this.salvarLocalStorage();
-                this.init();
-                alert(`Carga concluída com sucesso! ${importados} processos foram injetados no sistema.`);
-            } else {
-                alert("Nenhum dado válido lido. Verifique se salvou a planilha como 'CSV (separado por vírgulas)'.");
-            }
-            event.target.value = ''; // Limpa o input para poder importar de novo se precisar
-        };
-        
-        // Lê o arquivo no formato ANSI para não quebrar a acentuação do Excel (como 'Réu', 'Ação')
-        leitor.readAsText(arquivo, 'ISO-8859-1'); 
     }
 
     salvarComo() {
@@ -267,10 +203,84 @@ class JudicialTechERP {
             this.nomeArquivo = "pericia_calculos.json";
             this.hasUnsavedChanges = false;
             this.init();
+            this.renderizarHistorico();
         }
     }
 
-    // LÓGICA DO FORMULÁRIO DE CADASTRO
+    importarCSV(event) {
+        const arquivo = event.target.files[0];
+        if (!arquivo) return;
+
+        const leitor = new FileReader();
+        leitor.onload = (e) => {
+            const texto = e.target.result;
+            const linhas = texto.split('\n');
+            let importados = 0;
+
+            for (let i = 1; i < linhas.length; i++) {
+                const linha = linhas[i].trim();
+                if (!linha) continue;
+
+                const colunas = linha.split(';');
+                if (colunas.length < 5) continue;
+
+                const parseData = (str) => {
+                    if (!str || str.trim() === "") return "";
+                    const partes = str.trim().split('/');
+                    if (partes.length === 3) {
+                        return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                    }
+                    return "";
+                };
+
+                const parseValor = (str) => {
+                    if (!str || str.trim() === "") return 0;
+                    let limpo = str.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+                    return parseFloat(limpo) || 0;
+                };
+
+                const parseBool = (str) => {
+                    return str && str.trim().toLowerCase() === 'sim';
+                };
+
+                const novoProcesso = {
+                    id: Math.random().toString(36).substring(2, 9),
+                    realizador: colunas[0] ? colunas[0].trim() : "",
+                    numeroProcesso: colunas[1] ? colunas[1].trim() : "Pendente/Sem Número",
+                    parte: colunas[2] ? colunas[2].trim() : "",
+                    reu: colunas[3] ? colunas[3].trim() : "",
+                    advogada: colunas[4] ? colunas[4].trim() : "",
+                    dataSolicitada: parseData(colunas[5]),
+                    orgaoJulgador: colunas[6] ? colunas[6].trim() : "",
+                    tipoAcao: colunas[7] ? colunas[7].trim() : "",
+                    documentacaoDisponibilizada: colunas[8] ? colunas[8].trim() : "",
+                    valorCobrado: parseValor(colunas[9]),
+                    horasTrabalhadas: parseInt(colunas[10]) || 0,
+                    observacoes: colunas[11] ? colunas[11].trim() : "",
+                    dataEntrega: parseData(colunas[12]),
+                    dataPagamento: parseData(colunas[13]),
+                    concluido: parseBool(colunas[14]),
+                    impugnado: parseBool(colunas[15])
+                };
+
+                this.db.processes.push(novoProcesso);
+                importados++;
+            }
+
+            if (importados > 0) {
+                this.registrarLog("IMPORTAÇÃO LOTE", `Migração de ${importados} processos via planilha Excel (CSV).`);
+                this.hasUnsavedChanges = true;
+                this.salvarLocalStorage();
+                this.init();
+                alert(`Carga concluída com sucesso! ${importados} processos foram injetados no sistema.`);
+            } else {
+                alert("Nenhum dado válido lido. Verifique se salvou a planilha como 'CSV (separado por vírgulas)'.");
+            }
+            event.target.value = '';
+        };
+        leitor.readAsText(arquivo, 'ISO-8859-1'); 
+    }
+
     salvarProcesso(voltarParaLista = true) {
         const numProc = document.getElementById("numeroProcesso").value.trim();
         const parte = document.getElementById("parte").value.trim();
@@ -306,7 +316,7 @@ class JudicialTechERP {
 
         if (idExistente) {
             const index = this.db.processes.findIndex(p => p.id === idExistente);
-            this.db.processes[index] = processoObj;
+            if (index >= 0) this.db.processes[index] = processoObj;
             this.registrarLog("ALTERAÇÃO", `Processo CNJ ${numProc} atualizado no sistema.`);
         } else {
             this.db.processes.push(processObj);
@@ -339,7 +349,6 @@ class JudicialTechERP {
         document.getElementById("tipoAcao").value = p.tipoAcao || "";
         document.getElementById("documentacaoDisponibilizada").value = p.documentacaoDisponibilizada || "";
         
-        // Formata valor para exibição na edição
         document.getElementById("valorCobrado").value = p.valorCobrado ? "R$ " + p.valorCobrado.toFixed(2).replace(".", ",").replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.") : "";
         
         document.getElementById("dataEntrega").value = p.dataEntrega || "";
@@ -350,11 +359,13 @@ class JudicialTechERP {
         document.getElementById("observacoes").value = p.observacoes || "";
 
         document.getElementById("cadastro-titulo").innerText = "Editar Registro de Cálculo";
-        document.getElementById("btnExcluir").style.display = "inline-flex";
-        document.getElementById("btnDuplicar").style.disabled = false;
+        
+        const btnExc = document.getElementById("btnExcluir");
+        if (btnExc) btnExc.style.display = "inline-flex";
 
         this.atualizarTimelineIndividual();
-        document.getElementById("painelTimelineProcesso").style.display = "block";
+        const pTimeline = document.getElementById("painelTimelineProcesso");
+        if (pTimeline) pTimeline.style.display = "block";
 
         this.mudarTela("tela-cadastro", document.getElementById("btnMenuCadastro"));
     }
@@ -362,7 +373,8 @@ class JudicialTechERP {
     duplicarProcesso() {
         document.getElementById("processoId").value = "";
         document.getElementById("numeroProcesso").value += " (Cópia)";
-        document.getElementById("btnExcluir").style.display = "none";
+        const btnExc = document.getElementById("btnExcluir");
+        if (btnExc) btnExc.style.display = "none";
         document.getElementById("cadastro-titulo").innerText = "Duplicar Cenário de Cálculo";
         this.marcarModificado();
     }
@@ -380,11 +392,14 @@ class JudicialTechERP {
     }
 
     limparFormulario() {
-        document.getElementById("formProcesso").reset();
+        const form = document.getElementById("formProcesso");
+        if (form) form.reset();
         document.getElementById("processoId").value = "";
         document.getElementById("cadastro-titulo").innerText = "Novo Cadastro de Cálculo";
-        document.getElementById("btnExcluir").style.display = "none";
-        document.getElementById("painelTimelineProcesso").style.display = "none";
+        const btnExc = document.getElementById("btnExcluir");
+        if (btnExc) btnExc.style.display = "none";
+        const pTimeline = document.getElementById("painelTimelineProcesso");
+        if (pTimeline) pTimeline.style.display = "none";
     }
 
     atualizarTimelineIndividual() {
@@ -393,27 +408,28 @@ class JudicialTechERP {
         const dPag = document.getElementById("dataPagamento").value;
         const concluido = document.getElementById("concluido").checked;
 
-        // Step 1: Solicitado
         const sSol = document.getElementById("step-solicitado");
-        if (dSoli) { sSol.classList.add("done"); document.getElementById("date-step-solicitado").innerText = dSoli.split("-").reverse().join("/"); }
-        else { sSol.classList.remove("done"); document.getElementById("date-step-solicitado").innerText = "-"; }
+        if (sSol) {
+            if (dSoli) { sSol.classList.add("done"); document.getElementById("date-step-solicitado").innerText = dSoli.split("-").reverse().join("/"); }
+            else { sSol.classList.remove("done"); document.getElementById("date-step-solicitado").innerText = "-"; }
+        }
 
-        // Step 2: Entregue
         const sEnt = document.getElementById("step-entregue");
-        if (dEnt || concluido) { sEnt.classList.add("done"); document.getElementById("date-step-entregue").innerText = dEnt ? dEnt.split("-").reverse().join("/") : "Sim"; }
-        else { sEnt.classList.remove("done"); document.getElementById("date-step-entregue").innerText = "-"; }
+        if (sEnt) {
+            if (dEnt || concluido) { sEnt.classList.add("done"); document.getElementById("date-step-entregue").innerText = dEnt ? dEnt.split("-").reverse().join("/") : "Sim"; }
+            else { sEnt.classList.remove("done"); document.getElementById("date-step-entregue").innerText = "-"; }
+        }
 
-        // Step 3: Pago
         const sPag = document.getElementById("step-pago");
-        if (dPag) { sPag.classList.add("done"); document.getElementById("date-step-pago").innerText = dPag.split("-").reverse().join("/"); }
-        else { sPag.classList.remove("done"); document.getElementById("date-step-pago").innerText = "-"; }
+        if (sPag) {
+            if (dPag) { sPag.classList.add("done"); document.getElementById("date-step-pago").innerText = dPag.split("-").reverse().join("/"); }
+            else { sPag.classList.remove("done"); document.getElementById("date-step-pago").innerText = "-"; }
+        }
     }
 
-    // AGREGADOR DE MÉTRICAS DO DASHBOARD & FINANCEIRO
     renderizarDashboard() {
         const lista = this.db.processes;
         let faturado = 0, recebido = 0, pendentes = 0, concluidos = 0, impugnados = 0, horas = 0;
-
         let realizadores = {}, advogadas = {}, orgaos = {}, acoes = {};
 
         lista.forEach(p => {
@@ -422,52 +438,51 @@ class JudicialTechERP {
             
             faturado += p.valorCobrado;
             if (p.dataPagamento) recebido += p.valorCobrado;
-
             horas += p.horasTrabalhadas;
 
-            // Volumétricas
             if (p.realizador) realizadores[p.realizador] = (realizadores[p.realizador] || 0) + 1;
             if (p.advogada) advogadas[p.advogada] = (advogadas[p.advogada] || 0) + 1;
             if (p.orgaoJulgador) orgaos[p.orgaoJulgador] = (orgaos[p.orgaoJulgador] || 0) + 1;
             if (p.tipoAcao) acoes[p.tipoAcao] = (acoes[p.tipoAcao] || 0) + 1;
         });
 
-        // Atualiza KPIs da Tela 1
-        document.getElementById("kpi-total").innerText = lista.length;
-        document.getElementById("kpi-pendentes").innerText = pendentes;
-        document.getElementById("kpi-concluidos").innerText = concluidos;
-        document.getElementById("kpi-impugnados").innerText = impugnados;
-        document.getElementById("kpi-faturado").innerText = this.formatarMoeda(faturado);
-        document.getElementById("kpi-recebido").innerText = this.formatarMoeda(recebido);
-        document.getElementById("kpi-vpendente").innerText = this.formatarMoeda(faturado - recebido);
-        document.getElementById("kpi-mediahoras").innerText = lista.length ? (horas / lista.length).toFixed(1) + "h" : "0h";
+        const safeSetText = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 
-        // Atualiza KPIs da Tela Financeira
-        document.getElementById("fin-contas-receber").innerText = this.formatarMoeda(faturado - recebido);
-        document.getElementById("fin-atraso").innerText = this.formatarMoeda(pendentes > 0 ? (faturado - recebido) * 0.4 : 0); // Estimativa de risco
-        document.getElementById("fin-previsao").innerText = this.formatarMoeda(faturado - recebido);
+        safeSetText("kpi-total", lista.length);
+        safeSetText("kpi-pendentes", pendentes);
+        safeSetText("kpi-concluidos", concluidos);
+        safeSetText("kpi-impugnados", impugnados);
+        safeSetText("kpi-faturado", this.formatarMoeda(faturado));
+        safeSetText("kpi-recebido", this.formatarMoeda(recebido));
+        safeSetText("kpi-vpendente", this.formatarMoeda(faturado - recebido));
+        safeSetText("kpi-mediahoras", lista.length ? (horas / lista.length).toFixed(1) + "h" : "0h");
 
-        // Renderiza Gráficos Estáticos em Barras CSS
+        safeSetText("fin-contas-receber", this.formatarMoeda(faturado - recebido));
+        safeSetText("fin-atraso", this.formatarMoeda(pendentes > 0 ? (faturado - recebido) * 0.25 : 0));
+        safeSetText("fin-previsao", this.formatarMoeda(faturado - recebido));
+
         this.desenharGrafico("chart-realizador", realizadores);
         this.desenharGrafico("chart-advogada", advogadas);
         this.desenharGrafico("chart-orgao", orgaos);
         this.desenharGrafico("chart-acao", acoes);
 
-        // Atualiza Tabela Rápida Financeira
         const tbodyFin = document.getElementById("tbodyFinanceiro");
-        tbodyFin.innerHTML = "";
-        lista.filter(p => !p.dataPagamento).forEach(p => {
-            tbodyFin.innerHTML += `<tr>
-                <td><b>${p.numeroProcesso}</b></td>
-                <td>${p.parte} x ${p.reu}</td>
-                <td>${p.dataEntrega ? p.dataEntrega.split("-").reverse().join("/") : "Pendente"}</td>
-                <td style="font-weight:700; color:var(--color-primary)">${this.formatarMoeda(p.valorCobrado)}</td>
-            </tr>`;
-        });
+        if (tbodyFin) {
+            tbodyFin.innerHTML = "";
+            lista.filter(p => !p.dataPagamento).forEach(p => {
+                tbodyFin.innerHTML += `<tr>
+                    <td><b>${p.numeroProcesso}</b></td>
+                    <td>${p.parte} x ${p.reu}</td>
+                    <td>${p.dataEntrega ? p.dataEntrega.split("-").reverse().join("/") : "Pendente"}</td>
+                    <td style="font-weight:700; color:var(--color-primary)">${this.formatarMoeda(p.valorCobrado)}</td>
+                </tr>`;
+            });
+        }
     }
 
     desenharGrafico(containerId, dicionario) {
         const container = document.getElementById(containerId);
+        if (!container) return;
         container.innerHTML = "";
         const entradas = Object.entries(dicionario);
         if (entradas.length === 0) { container.innerHTML = "<small style='color:var(--color-text-muted)'>Sem dados amostrais.</small>"; return; }
@@ -483,10 +498,7 @@ class JudicialTechERP {
         });
     }
 
-    // FILTRAGEM, ORDENAÇÃO E RENDERIZAÇÃO DO GRID ERP
-    filtrarGrid() {
-        this.renderizarGrid();
-    }
+    filtrarGrid() { this.renderizarGrid(); }
 
     ordenarGrid(coluna) {
         if (this.ordemColuna === coluna) {
@@ -500,35 +512,31 @@ class JudicialTechERP {
 
     renderizarGrid() {
         const tbody = document.getElementById("tbodyProcessos");
+        if (!tbody) return;
         tbody.innerHTML = "";
 
-        const gSearch = document.getElementById("filtroGlobal").value.toLowerCase();
-        const fParte = document.getElementById("filtroParte").value.toLowerCase();
-        const fReu = document.getElementById("filtroReu").value.toLowerCase();
-        const fRealizador = document.getElementById("filtroRealizador").value.toLowerCase();
-        const fConcluido = document.getElementById("filtroConcluido").value;
-        const fImpugnado = document.getElementById("filtroImpugnado").value;
+        const gSearch = document.getElementById("filtroGlobal")?.value.toLowerCase() || "";
+        const fParte = document.getElementById("filtroParte")?.value.toLowerCase() || "";
+        const fReu = document.getElementById("filtroReu")?.value.toLowerCase() || "";
+        const fRealizador = document.getElementById("filtroRealizador")?.value.toLowerCase() || "";
+        const fConcluido = document.getElementById("filtroConcluido")?.value || "TODOS";
+        const fImpugnado = document.getElementById("filtroImpugnado")?.value || "TODOS";
 
         let resultados = this.db.processes.filter(p => {
-            // Match Busca Global
             if (gSearch && !p.numeroProcesso.toLowerCase().includes(gSearch) && !p.parte.toLowerCase().includes(gSearch) && !p.reu.toLowerCase().includes(gSearch) && !p.advogada.toLowerCase().includes(gSearch)) return false;
-            // Match Filtros Específicos
             if (fParte && !p.parte.toLowerCase().includes(fParte)) return false;
             if (fReu && !p.reu.toLowerCase().includes(fReu)) return false;
             if (fRealizador && !p.realizador.toLowerCase().includes(fRealizador)) return false;
             
             if (fConcluido !== "TODOS") {
-                const check = fConcluido === "SIM";
-                if (p.concluido !== check) return false;
+                if (p.concluido !== (fConcluido === "SIM")) return false;
             }
             if (fImpugnado !== "TODOS") {
-                const check = fImpugnado === "SIM";
-                if (p.impugnado !== check) return false;
+                if (p.impugnado !== (fImpugnado === "SIM")) return false;
             }
             return true;
         });
 
-        // Ordenação JavaScript pura
         if (this.ordemColuna) {
             resultados.sort((a, b) => {
                 let valA = a[this.ordemColuna];
@@ -560,18 +568,14 @@ class JudicialTechERP {
         }
     }
 
-    // AUDITORIA E EXPORTAÇÃO
     registrarLog(acao, detalhes) {
-        this.db.history.push({
-            timestamp: new Date().toISOString(),
-            acao: acao,
-            detalhes: detalhes
-        });
+        this.db.history.push({ timestamp: new Date().toISOString(), acao, detalhes });
         this.renderizarHistorico();
     }
 
     renderizarHistorico() {
         const tbody = document.getElementById("tbodyHistorico");
+        if (!tbody) return;
         tbody.innerHTML = "";
         [...this.db.history].reverse().forEach(log => {
             tbody.innerHTML += `<tr>
@@ -583,7 +587,6 @@ class JudicialTechERP {
     }
 
     exportarExcel() {
-        // Gera um formato CSV puro legível nativamente pelo Excel
         let csv = "Numero Processo;Parte Autora;Reu Reclamado;Tipo de Acao;Honorarios;Concluido\n";
         this.db.processes.forEach(p => {
             csv += `${p.numeroProcesso};${p.parte};${p.reu};${p.tipoAcao || ""};${p.valorCobrado.toFixed(2)};${p.concluido ? "Sim" : "Nao"}\n`;
@@ -603,7 +606,6 @@ class JudicialTechERP {
     }
 }
 
-// Inicializa a aplicação quando o DOM estiver pronto
 let app;
 document.addEventListener("DOMContentLoaded", () => {
     app = new JudicialTechERP();
