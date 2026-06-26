@@ -157,6 +157,90 @@ class JudicialTechERP {
         leitor.readAsText(arquivo);
     }
 
+    importarCSV(event) {
+        const arquivo = event.target.files[0];
+        if (!arquivo) return;
+
+        const leitor = new FileReader();
+        leitor.onload = (e) => {
+            const texto = e.target.result;
+            const linhas = texto.split('\n');
+            let importados = 0;
+
+            // Loop para ler linha por linha (ignorando o cabeçalho na linha 0)
+            for (let i = 1; i < linhas.length; i++) {
+                const linha = linhas[i].trim();
+                if (!linha) continue;
+
+                // O Excel brasileiro separa as colunas do CSV com ponto e vírgula (;)
+                const colunas = linha.split(';');
+
+                // Se a linha estiver vazia ou quebra de formatação, pula
+                if (colunas.length < 5) continue;
+
+                // Funções internas para traduzir a formatação do seu Excel
+                const parseData = (str) => {
+                    if (!str || str.trim() === "") return "";
+                    const partes = str.trim().split('/');
+                    if (partes.length === 3) {
+                        // Converte DD/MM/AAAA para AAAA-MM-DD
+                        return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                    }
+                    return "";
+                };
+
+                const parseValor = (str) => {
+                    if (!str || str.trim() === "") return 0;
+                    // Tira o "R$", remove os pontos de milhar e troca vírgula por ponto
+                    let limpo = str.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+                    return parseFloat(limpo) || 0;
+                };
+
+                const parseBool = (str) => {
+                    return str && str.trim().toLowerCase() === 'sim';
+                };
+
+                // Monta o objeto do processo mapeando as letras das colunas da sua imagem
+                const novoProcesso = {
+                    id: Math.random().toString(36).substring(2, 9),
+                    realizador: colunas[0] ? colunas[0].trim() : "",
+                    numeroProcesso: colunas[1] ? colunas[1].trim() : "Pendente/Sem Número",
+                    parte: colunas[2] ? colunas[2].trim() : "",
+                    reu: colunas[3] ? colunas[3].trim() : "",
+                    advogada: colunas[4] ? colunas[4].trim() : "",
+                    dataSolicitada: parseData(colunas[5]),
+                    orgaoJulgador: colunas[6] ? colunas[6].trim() : "",
+                    tipoAcao: colunas[7] ? colunas[7].trim() : "",
+                    documentacaoDisponibilizada: colunas[8] ? colunas[8].trim() : "",
+                    valorCobrado: parseValor(colunas[9]),
+                    horasTrabalhadas: parseInt(colunas[10]) || 0, // Sua coluna 'S'
+                    observacoes: colunas[11] ? colunas[11].trim() : "",
+                    dataEntrega: parseData(colunas[12]),
+                    dataPagamento: parseData(colunas[13]),
+                    concluido: parseBool(colunas[14]),
+                    impugnado: parseBool(colunas[15])
+                };
+
+                this.db.processes.push(novoProcesso);
+                importados++;
+            }
+
+            if (importados > 0) {
+                this.registrarLog("IMPORTAÇÃO LOTE", `Migração de ${importados} processos via planilha Excel (CSV).`);
+                this.hasUnsavedChanges = true;
+                this.salvarLocalStorage();
+                this.init();
+                alert(`Carga concluída com sucesso! ${importados} processos foram injetados no sistema.`);
+            } else {
+                alert("Nenhum dado válido lido. Verifique se salvou a planilha como 'CSV (separado por vírgulas)'.");
+            }
+            event.target.value = ''; // Limpa o input para poder importar de novo se precisar
+        };
+        
+        // Lê o arquivo no formato ANSI para não quebrar a acentuação do Excel (como 'Réu', 'Ação')
+        leitor.readAsText(arquivo, 'ISO-8859-1'); 
+    }
+
     salvarComo() {
         this.db.metadata.updatedAt = new Date().toISOString();
         const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.db, null, 2));
