@@ -1,1 +1,440 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Judicial Tech — Perícias e Cálculos</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
 
+    <header class="app-header">
+        <div class="header-left">
+            <span class="logo"><i class="fa-solid fa-scale-balanced"></i> Judicial Tech</span>
+            
+            <div class="menu-arquivo-container">
+                <button class="btn-menu-arquivo" id="btnMenuArquivo">
+                    Arquivo <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div class="dropdown-menu" id="dropdownArquivo">
+                    <button onclick="app.novoArquivo()"><i class="fa-solid fa-file-circle-plus"></i> Novo Banco de Dados</button>
+                    <button onclick="app.dispararInputAbrir()"><i class="fa-solid fa-folder-open"></i> Abrir JSON...</button>
+                    <button onclick="app.salvarComo()"><i class="fa-solid fa-download"></i> Salvar Como (Exportar JSON)</button>
+                    <hr>
+                    <button onclick="app.limparBase()"><i class="fa-solid fa-file-circle-xmark"></i> Fechar Arquivo / Limpar</button>
+                </div>
+            </div>
+
+            <div class="arquivo-status" id="arquivoStatus" style="display: none;">
+                <i class="fa-solid fa-database"></i>
+                <span id="nomeArquivoAtivo">base_calculos.json</span>
+                <span class="indicador-modificado" id="indicadorModificado" title="Alterações não salvas na nuvem/JSON">*</span>
+            </div>
+        </div>
+        
+        <div class="header-right">
+            <span class="status-conexao"><i class="fa-solid fa-circle"></i> Base Conectada (Navegador)</span>
+        </div>
+    </header>
+
+    <div class="app-layout">
+        
+        <aside class="app-sidebar">
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="tela-dashboard">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </button>
+                <button class="nav-item" data-target="tela-pesquisa">
+                    <i class="fa-solid fa-magnifying-glass"></i> Pesquisa ERP
+                </button>
+                <button class="nav-item" data-target="tela-cadastro" id="btnMenuCadastro">
+                    <i class="fa-solid fa-circle-plus"></i> Novo Cálculo
+                </button>
+                <button class="nav-item" data-target="tela-financeiro">
+                    <i class="fa-solid fa-wallet"></i> Gestão Financeira
+                </button>
+                <button class="nav-item" data-target="tela-historico">
+                    <i class="fa-solid fa-history"></i> Histórico & Auditoria
+                </button>
+                <button class="nav-item" data-target="tela-configuracoes">
+                    <i class="fa-solid fa-gear"></i> Configurações
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <small>Judicial Tech UI v1.5.0</small>
+            </div>
+        </aside>
+
+        <main class="app-content">
+
+            <section id="tela-dashboard" class="tela-section active">
+                <div class="titulo-secao">
+                    <h1>Dashboard Executivo</h1>
+                    <p>Indicadores operacionais e volumetria em tempo de execução.</p>
+                </div>
+
+                <div class="grid-kpis">
+                    <div class="card-kpi border-primary">
+                        <h3>Total de Processos</h3>
+                        <span class="value" id="kpi-total">0</span>
+                    </div>
+                    <div class="card-kpi border-info">
+                        <h3>Trabalhos Pendentes</h3>
+                        <span class="value" id="kpi-pendentes">0</span>
+                    </div>
+                    <div class="card-kpi border-success">
+                        <h3>Trabalhos Concluídos</h3>
+                        <span class="value" id="kpi-concluidos">0</span>
+                    </div>
+                    <div class="card-kpi border-danger">
+                        <h3>Impugnados</h3>
+                        <span class="value" id="kpi-impugnados">0</span>
+                    </div>
+                    <div class="card-kpi border-primary">
+                        <h3>Valor Faturado</h3>
+                        <span class="value text-primary" id="kpi-faturado">R$ 0,00</span>
+                    </div>
+                    <div class="card-kpi border-success">
+                        <h3>Valor Recebido</h3>
+                        <span class="value text-success" id="kpi-recebido">R$ 0,00</span>
+                    </div>
+                    <div class="card-kpi border-danger">
+                        <h3>Valor Pendente</h3>
+                        <span class="value text-danger" id="kpi-vpendente">R$ 0,00</span>
+                    </div>
+                    <div class="card-kpi border-dark">
+                        <h3>Média Horas/Processo</h3>
+                        <span class="value" id="kpi-mediahoras">0h</span>
+                    </div>
+                </div>
+
+                <div class="grid-graficos">
+                    <div class="card-grafico">
+                        <h4>Quantidade por Realizador</h4>
+                        <div class="bar-chart-container" id="chart-realizador"></div>
+                    </div>
+                    <div class="card-grafico">
+                        <h4>Quantidade por Advogada</h4>
+                        <div class="bar-chart-container" id="chart-advogada"></div>
+                    </div>
+                    <div class="card-grafico">
+                        <h4>Distribuição por Órgão Julgador</h4>
+                        <div class="bar-chart-container" id="chart-orgao"></div>
+                    </div>
+                    <div class="card-grafico">
+                        <h4>Quantidade por Tipo de Ação</h4>
+                        <div class="bar-chart-container" id="chart-acao"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tela-pesquisa" class="tela-section">
+                <div class="titulo-secao-acoes">
+                    <div>
+                        <h1>Pesquisa Avançada</h1>
+                        <p>Cruzamento de dados matriciais em tempo recorde.</p>
+                    </div>
+                    <div class="acoes-header">
+                        <button class="btn btn-secondary" onclick="app.exportarExcel()"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+                        <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Imprimir Relatório</button>
+                    </div>
+                </div>
+
+                <div class="painel-filtros-erp">
+                    <div class="linha-busca-global">
+                        <i class="fa-solid fa-magnifying-glass icone-busca"></i>
+                        <input type="text" id="filtroGlobal" placeholder="Pesquisa global instantânea por Processo, Parte Autor, Réu ou Advogada..." oninput="app.filtrarGrid()">
+                    </div>
+                    <div class="grid-filtros-avancados">
+                        <div class="form-group">
+                            <label>Parte Autora</label>
+                            <input type="text" id="filtroParte" oninput="app.filtrarGrid()">
+                        </div>
+                        <div class="form-group">
+                            <label>Réu / Reclamado</label>
+                            <input type="text" id="filtroReu" oninput="app.filtrarGrid()">
+                        </div>
+                        <div class="form-group">
+                            <label>Realizador</label>
+                            <input type="text" id="filtroRealizador" oninput="app.filtrarGrid()">
+                        </div>
+                        <div class="form-group">
+                            <label>Concluído</label>
+                            <select id="filtroConcluido" onchange="app.filtrarGrid()">
+                                <option value="TODOS">Todos</option>
+                                <option value="SIM">Sim</option>
+                                <option value="NAO">Não</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Impugnado</label>
+                            <select id="filtroImpugnado" onchange="app.filtrarGrid()">
+                                <option value="TODOS">Todos</option>
+                                <option value="SIM">Sim</option>
+                                <option value="NAO">Não</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="container-tabela">
+                    <table class="tabela-erp" id="tabelaProcessos">
+                        <thead>
+                            <tr>
+                                <th onclick="app.ordenarGrid('numeroProcesso')">Número CNJ <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('parte')">Parte Autora <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('reu')">Réu / Reclamado <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('tipoAcao')">Tipo de Ação <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('valorCobrado')">Honorários <i class="fa-solid fa-sort"></i></th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyProcessos">
+                            </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="tela-cadastro" class="tela-section">
+                <div class="titulo-secao">
+                    <h1 id="cadastro-titulo">Novo Cadastro de Cálculo</h1>
+                    <p>Preencha os módulos abaixo para estruturar a memória de cálculo.</p>
+                </div>
+
+                <form id="formProcesso" onsubmit="event.preventDefault();">
+                    <input type="hidden" id="processoId">
+
+                    <div class="grid-cards-cadastro">
+                        
+                        <div class="card-cadastro">
+                            <div class="card-header-cadastro">Dados do Processo</div>
+                            <div class="card-body-cadastro">
+                                <div class="form-group required">
+                                    <label>Número do Processo (CNJ)</label>
+                                    <input type="text" id="numeroProcesso" placeholder="0000000-00.0000.0.00.0000" required>
+                                </div>
+                                <div class="form-group required">
+                                    <label>Parte Autora</label>
+                                    <input type="text" id="parte" required>
+                                </div>
+                                <div class="form-group required">
+                                    <label>Réu / Reclamado</label>
+                                    <input type="text" id="reu" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Advogada Solicitante</label>
+                                    <input type="text" id="advogada">
+                                </div>
+                                <div class="form-group">
+                                    <label>Realizador do Trabalho</label>
+                                    <input type="text" id="realizador">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-cadastro">
+                            <div class="card-header-cadastro">Informações do Trabalho</div>
+                            <div class="card-body-cadastro">
+                                <div class="form-group">
+                                    <label>Data Solicitada</label>
+                                    <input type="date" id="dataSolicitada">
+                                </div>
+                                <div class="form-group">
+                                    <label>Órgão Julgador (Vara/Tribunal)</label>
+                                    <input type="text" id="orgaoJulgador">
+                                </div>
+                                <div class="form-group">
+                                    <label>Tipo de Ação</label>
+                                    <input type="text" id="tipoAcao" placeholder="Ex: Trabalhista, Cível...">
+                                </div>
+                                <div class="form-group">
+                                    <label>Documentação Disponibilizada</label>
+                                    <textarea id="documentacaoDisponibilizada" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-cadastro">
+                            <div class="card-header-cadastro">Financeiro</div>
+                            <div class="card-body-cadastro">
+                                <div class="form-group">
+                                    <label>Valor Cobrado (R$)</label>
+                                    <input type="text" id="valorCobrado" placeholder="0,00">
+                                </div>
+                                <div class="form-group">
+                                    <label>Data da Entrega</label>
+                                    <input type="date" id="dataEntrega">
+                                </div>
+                                <div class="form-group">
+                                    <label>Data do Pagamento</label>
+                                    <input type="date" id="dataPagamento">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-cadastro">
+                            <div class="card-header-cadastro">Controle & Observações</div>
+                            <div class="card-body-cadastro">
+                                <div class="form-group">
+                                    <label>Horas Trabalhadas</label>
+                                    <input type="number" id="horasTrabalhadas" value="0">
+                                </div>
+                                <div class="form-group-checkbox">
+                                    <input type="checkbox" id="concluido">
+                                    <label for="concluido">Trabalho Concluído</label>
+                                </div>
+                                <div class="form-group-checkbox">
+                                    <input type="checkbox" id="impugnado">
+                                    <label for="impugnado" class="text-danger">Processo Impugnado</label>
+                                </div>
+                                <div class="form-group">
+                                    <label>Observações Importantes</label>
+                                    <textarea id="observacoes" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="painel-timeline-individual" id="painelTimelineProcesso" style="display: none;">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Linha do Tempo Visual do Caso</h3>
+                        <div class="timeline-horizontal">
+                            <div class="timeline-step" id="step-solicitado">
+                                <div class="step-icon"><i class="fa-solid fa-file-invoice"></i></div>
+                                <div class="step-label">Solicitado</div>
+                                <div class="step-date" id="date-step-solicitado">-</div>
+                            </div>
+                            <div class="timeline-step" id="step-entregue">
+                                <div class="step-icon"><i class="fa-solid fa-paper-plane"></i></div>
+                                <div class="step-label">Entregue</div>
+                                <div class="step-date" id="date-step-entregue">-</div>
+                            </div>
+                            <div class="timeline-step" id="step-pago">
+                                <div class="step-icon"><i class="fa-solid fa-money-bill-check"></i></div>
+                                <div class="step-label">Pago</div>
+                                <div class="step-date" id="date-step-pago">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="barra-acoes-formulario">
+                        <div class="grupo-esquerda">
+                            <button type="button" class="btn btn-primary" onclick="app.salvarProcesso(true)"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+                            <button type="button" class="btn btn-outline" onclick="app.salvarProcesso(false)"><i class="fa-solid fa-plus"></i> Salvar e Novo</button>
+                            <button type="button" class="btn btn-outline" id="btnDuplicar" onclick="app.duplicarProcesso()"><i class="fa-solid fa-copy"></i> Duplicar</button>
+                        </div>
+                        <div class="grupo-direita">
+                            <button type="button" class="btn btn-text" onclick="app.limparFormulario()"><i class="fa-solid fa-eraser"></i> Limpar</button>
+                            <button type="button" class="btn btn-danger" id="btnExcluir" onclick="app.deletarProcesso()" style="display: none;"><i class="fa-solid fa-trash"></i> Excluir</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <section id="tela-financeiro" class="tela-section">
+                <div class="titulo-secao">
+                    <h1>Gestão Financeira & Fluxo</h1>
+                    <p>Previsões de receita, liquidez e recebimentos pendentes.</p>
+                </div>
+
+                <div class="grid-kpis">
+                    <div class="card-kpi border-info">
+                        <h3>Contas a Receber</h3>
+                        <span class="value text-primary" id="fin-contas-receber">R$ 0,00</span>
+                    </div>
+                    <div class="card-kpi border-danger">
+                        <h3>Pagamentos em Atraso</h3>
+                        <span class="value text-danger" id="fin-atraso">R$ 0,00</span>
+                    </div>
+                    <div class="card-kpi border-success">
+                        <h3>Previsão Próximos 30 dias</h3>
+                        <span class="value text-success" id="fin-previsao">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <div class="card-cadastro" style="margin-top: 25px;">
+                    <div class="card-header-cadastro"><i class="fa-solid fa-list-check"></i> Faturas em Aberto</div>
+                    <div class="container-tabela">
+                        <table class="tabela-erp">
+                            <thead>
+                                <tr>
+                                    <th>Processo</th>
+                                    <th>Parte / Réu</th>
+                                    <th>Data Entrega</th>
+                                    <th>Valor Estimado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyFinanceiro">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tela-historico" class="tela-section">
+                <div class="titulo-secao">
+                    <h1>Trilha de Auditoria</h1>
+                    <p>Registro cronológico e imutável de modificações de dados no arquivo.</p>
+                </div>
+
+                <div class="container-tabela">
+                    <table class="tabela-erp">
+                        <thead>
+                            <tr>
+                                <th style="width: 200px;">Data/Hora</th>
+                                <th style="width: 120px;">Ação</th>
+                                <th>Detalhamento Técnico da Alteração</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyHistorico">
+                            </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="tela-configuracoes" class="tela-section">
+                <div class="titulo-secao">
+                    <h1>Configurações da Aplicação</h1>
+                    <p>Preferências do sistema corporativo e diretivas de contingência.</p>
+                </div>
+
+                <div class="grid-cards-cadastro">
+                    <div class="card-cadastro">
+                        <div class="card-header-cadastro">Preferências Visuais</div>
+                        <div class="card-body-cadastro">
+                            <div class="form-group">
+                                <label>Tema do Sistema</label>
+                                <select id="configTema" onchange="app.alternarTema()">
+                                    <option value="light">Claro (Padrão)</option>
+                                    <option value="dark">Escuro / Modo Noturno</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-cadastro">
+                        <div class="card-header-cadastro">Políticas de Segurança e Auto-Backup</div>
+                        <div class="card-body-cadastro">
+                            <div class="form-group">
+                                <label>Intervalo de Salvamento Automático (Minutos)</label>
+                                <input type="number" id="configIntervalo" value="5">
+                            </div>
+                            <p style="font-size: 12px; color: var(--color-text-secondary); margin-top: 10px;">
+                                *Nota: No ambiente web do GitHub Pages, os backups e os dados são mantidos sincronizados no armazenamento local interno do navegador de forma isolada.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <input type="file" id="inputAbrirArquivo" accept=".json" style="display: none;" onchange="app.abrirArquivoJson(event)">
+
+    <footer class="app-footer-global">
+        <p>Judicial Tech UI • Sistema de Persistência e Cálculos Validado © 2026</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
