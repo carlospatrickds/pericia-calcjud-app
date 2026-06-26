@@ -6,6 +6,7 @@
     <title>Judicial Tech — Perícias e Cálculos</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 
@@ -20,13 +21,11 @@
                 <div class="dropdown-menu" id="dropdownArquivo">
                     <button onclick="app.novoArquivo()"><i class="fa-solid fa-file-circle-plus"></i> Novo Banco de Dados</button>
                     <button onclick="app.dispararInputAbrir()"><i class="fa-solid fa-folder-open"></i> Abrir JSON...</button>
-                    <!-- NOVA LINHA AQUI -->
                     <button onclick="document.getElementById('inputImportarCSV').click()"><i class="fa-solid fa-table"></i> Importar Planilha (CSV)...</button>
-    
                     <button onclick="app.salvarComo()"><i class="fa-solid fa-download"></i> Salvar Como (Exportar JSON)</button>
                     <hr>
                     <button onclick="app.limparBase()"><i class="fa-solid fa-file-circle-xmark"></i> Fechar Arquivo / Limpar</button>
-                   </div>
+                </div>
             </div>
 
             <div class="arquivo-status" id="arquivoStatus" style="display: none;">
@@ -136,7 +135,7 @@
                 <div class="titulo-secao-acoes">
                     <div>
                         <h1>Pesquisa Avançada</h1>
-                        <p>Cruzamento de dados matriciais em tempo recorde.</p>
+                        <p>Visualização resumida e cruzamento matricial de dados.</p>
                     </div>
                     <div class="acoes-header">
                         <button class="btn btn-secondary" onclick="app.exportarExcel()"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
@@ -147,7 +146,7 @@
                 <div class="painel-filtros-erp">
                     <div class="linha-busca-global">
                         <i class="fa-solid fa-magnifying-glass icone-busca"></i>
-                        <input type="text" id="filtroGlobal" placeholder="Pesquisa global instantânea por Processo, Parte Autor, Réu ou Advogada..." oninput="app.filtrarGrid()">
+                        <input type="text" id="filtroGlobal" placeholder="Pesquisa global por Processo, Autor, Réu ou Advogada..." oninput="app.filtrarGrid()">
                     </div>
                     <div class="grid-filtros-avancados">
                         <div class="form-group">
@@ -188,13 +187,15 @@
                                 <th onclick="app.ordenarGrid('numeroProcesso')">Número CNJ <i class="fa-solid fa-sort"></i></th>
                                 <th onclick="app.ordenarGrid('parte')">Parte Autora <i class="fa-solid fa-sort"></i></th>
                                 <th onclick="app.ordenarGrid('reu')">Réu / Reclamado <i class="fa-solid fa-sort"></i></th>
-                                <th onclick="app.ordenarGrid('tipoAcao')">Tipo de Ação <i class="fa-solid fa-sort"></i></th>
-                                <th onclick="app.ordenarGrid('valorCobrado')">Honorários <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('advogada')">Advogada <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('tipoAcao')">Assunto (Ação) <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('dataSolicitada')">Solicitado <i class="fa-solid fa-sort"></i></th>
+                                <th onclick="app.ordenarGrid('dataEntrega')">Entrega <i class="fa-solid fa-sort"></i></th>
                                 <th>Status</th>
+                                <th style="text-align: center; width: 100px;">Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="tbodyProcessos">
-                            </tbody>
+                        <tbody id="tbodyProcessos"></tbody>
                     </table>
                 </div>
             </section>
@@ -291,9 +292,11 @@
                                     <input type="checkbox" id="impugnado">
                                     <label for="impugnado" class="text-danger">Processo Impugnado</label>
                                 </div>
-                                <div class="form-group">
-                                    <label>Observações Importantes</label>
-                                    <textarea id="observacoes" rows="3"></textarea>
+                                <div class="form-group" style="margin-top: 5px;">
+                                    <label>Observações do Caso (Texto Rico)</label>
+                                    <button type="button" class="btn btn-outline" onclick="app.abrirModalObservacoes()" style="width: 100%; justify-content: center;">
+                                        <i class="fa-solid fa-file-pen"></i> Editar Observações Ampliadas
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -367,8 +370,7 @@
                                     <th>Valor Estimado</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbodyFinanceiro">
-                                </tbody>
+                            <tbody id="tbodyFinanceiro"></tbody>
                         </table>
                     </div>
                 </div>
@@ -389,8 +391,7 @@
                                 <th>Detalhamento Técnico da Alteração</th>
                             </tr>
                         </thead>
-                        <tbody id="tbodyHistorico">
-                            </tbody>
+                        <tbody id="tbodyHistorico"></tbody>
                     </table>
                 </div>
             </section>
@@ -432,9 +433,34 @@
         </main>
     </div>
 
+    <div id="modalObservacoes" class="modal-container-rich" style="display: none;">
+        <div class="modal-content-rich">
+            <div class="modal-header-rich">
+                <h3><i class="fa-solid fa-pen-nib"></i> Editor Avançado de Observações</h3>
+            </div>
+            
+            <div class="modal-toolbar-rich">
+                <button type="button" title="Negrito" onclick="document.execCommand('bold', false, null)"><i class="fa-solid fa-bold"></i></button>
+                <button type="button" title="Itálico" onclick="document.execCommand('italic', false, null)"><i class="fa-solid fa-italic"></i></button>
+                <span class="separador-toolbar">|</span>
+                <button type="button" class="btn-cor-rich" style="color: #2980B9;" onclick="document.execCommand('foreColor', false, '#2980B9')"><i class="fa-solid fa-circle"></i> Azul</button>
+                <button type="button" class="btn-cor-rich" style="color: #27AE60;" onclick="document.execCommand('foreColor', false, '#27AE60')"><i class="fa-solid fa-circle"></i> Verde</button>
+                <button type="button" class="btn-cor-rich" style="color: #E74C3C;" onclick="document.execCommand('foreColor', false, '#E74C3C')"><i class="fa-solid fa-circle"></i> Vermelho</button>
+                <button type="button" class="btn-cor-rich" style="color: var(--color-text-main);" onclick="document.execCommand('foreColor', false, '#2F3640')"><i class="fa-solid fa-circle-xmark"></i> Limpar Cor</button>
+            </div>
+
+            <div id="editorObservacoesRich" contenteditable="true" class="editor-caixa-editable"></div>
+
+            <div class="modal-footer-rich">
+                <button type="button" class="btn btn-primary" onclick="app.salvarModalObservacoes()"><i class="fa-solid fa-check"></i> Salvar Edições</button>
+                <button type="button" class="btn btn-text" onclick="app.fecharModalObservacoes()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <input type="file" id="inputAbrirArquivo" accept=".json" style="display: none;" onchange="app.abrirArquivoJson(event)">
-    <!-- Adicione isto logo abaixo do inputAbrirArquivo que já existe -->
     <input type="file" id="inputImportarCSV" accept=".csv" style="display: none;" onchange="app.importarCSV(event)">
+    
     <footer class="app-footer-global">
         <p>Judicial Tech UI • Sistema de Persistência e Cálculos Validado © 2026</p>
     </footer>
