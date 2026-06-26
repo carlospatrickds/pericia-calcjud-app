@@ -20,10 +20,13 @@
                 <div class="dropdown-menu" id="dropdownArquivo">
                     <button onclick="app.novoArquivo()"><i class="fa-solid fa-file-circle-plus"></i> Novo Banco de Dados</button>
                     <button onclick="app.dispararInputAbrir()"><i class="fa-solid fa-folder-open"></i> Abrir JSON...</button>
+                    <!-- NOVA LINHA AQUI -->
+                    <button onclick="document.getElementById('inputImportarCSV').click()"><i class="fa-solid fa-table"></i> Importar Planilha (CSV)...</button>
+    
                     <button onclick="app.salvarComo()"><i class="fa-solid fa-download"></i> Salvar Como (Exportar JSON)</button>
                     <hr>
                     <button onclick="app.limparBase()"><i class="fa-solid fa-file-circle-xmark"></i> Fechar Arquivo / Limpar</button>
-                </div>
+                   </div>
             </div>
 
             <div class="arquivo-status" id="arquivoStatus" style="display: none;">
@@ -430,7 +433,8 @@
     </div>
 
     <input type="file" id="inputAbrirArquivo" accept=".json" style="display: none;" onchange="app.abrirArquivoJson(event)">
-
+    <!-- Adicione isto logo abaixo do inputAbrirArquivo que já existe -->
+    <input type="file" id="inputImportarCSV" accept=".csv" style="display: none;" onchange="app.importarCSV(event)">
     <footer class="app-footer-global">
         <p>Judicial Tech UI • Sistema de Persistência e Cálculos Validado © 2026</p>
     </footer>
