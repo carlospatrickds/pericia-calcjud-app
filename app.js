@@ -14,6 +14,7 @@ class JudicialTechERP {
         this.hasUnsavedChanges = false;
         this.ordemColuna = "";
         this.ordemDirecao = "asc";
+        this.observacoesRichHTML = ""; // Armazena o HTML formatado das observações
         
         this.init();
     }
@@ -141,6 +142,7 @@ class JudicialTechERP {
             };
             this.nomeArquivo = "novo_banco.json";
             this.hasUnsavedChanges = true;
+            this.observacoesRichHTML = "";
             this.salvarLocalStorage();
             this.init();
         }
@@ -202,92 +204,100 @@ class JudicialTechERP {
             this.db = ESTRUTURA_INICIAL_DB;
             this.nomeArquivo = "pericia_calculos.json";
             this.hasUnsavedChanges = false;
+            this.observacoesRichHTML = "";
             this.init();
             this.renderizarHistorico();
         }
     }
 
+    // GESTÃO AVANÇADA DE IMPORTAÇÃO CSV UTILIZANDO PAPAPARSE
     importarCSV(event) {
         const arquivo = event.target.files[0];
         if (!arquivo) return;
 
-        const leitor = new FileReader();
-        leitor.onload = (e) => {
-            const texto = e.target.result;
-            const linhas = texto.split('\n');
-            let importados = 0;
+        Papa.parse(arquivo, {
+            delimiter: ";", // Define o padrão separador de colunas brasileiro
+            skipEmptyLines: true,
+            encoding: "ISO-8859-1", // Preserva a acentuação ortográfica (Réu, Órgao, Ação)
+            complete: (resultados) => {
+                const linhas = resultados.data;
+                let importados = 0;
 
-            for (let i = 1; i < linhas.length; i++) {
-                const linha = linhas[i].trim();
-                if (!linha) continue;
+                // Lê linha por linha pulando o cabeçalho index 0
+                for (let i = 1; i < linhas.length; i++) {
+                    const colunas = linhas[i];
+                    if (colunas.length < 4) continue;
 
-                const colunas = linha.split(';');
-                if (colunas.length < 5) continue;
+                    const parseData = (str) => {
+                        if (!str || str.trim() === "") return "";
+                        const partes = str.trim().split('/');
+                        if (partes.length === 3) {
+                            return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                        }
+                        return "";
+                    };
 
-                const parseData = (str) => {
-                    if (!str || str.trim() === "") return "";
-                    const partes = str.trim().split('/');
-                    if (partes.length === 3) {
-                        return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
-                    }
-                    return "";
-                };
+                    const parseValor = (str) => {
+                        if (!str || str.trim() === "") return 0;
+                        let limpo = str.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+                        return parseFloat(limpo) || 0;
+                    };
 
-                const parseValor = (str) => {
-                    if (!str || str.trim() === "") return 0;
-                    let limpo = str.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
-                    return parseFloat(limpo) || 0;
-                };
+                    const parseBool = (str) => {
+                        if (!str) return false;
+                        const s = str.trim().toLowerCase();
+                        return s === 'sim' || s === 'true' || s === 'concluido' || s === 'concluído';
+                    };
 
-                const parseBool = (str) => {
-                    return str && str.trim().toLowerCase() === 'sim';
-                };
+                    const novoProcesso = {
+                        id: Math.random().toString(36).substring(2, 9),
+                        realizador: colunas[0] ? colunas[0].trim() : "",
+                        numeroProcesso: colunas[1] ? colunas[1].trim() : "Pendente",
+                        parte: colunas[2] ? colunas[2].trim() : "",
+                        reu: colunas[3] ? colunas[3].trim() : "",
+                        advogada: colunas[4] ? colunas[4].trim() : "",
+                        dataSolicitada: parseData(colunas[5]),
+                        orgaoJulgador: colunas[6] ? colunas[6].trim() : "",
+                        tipoAcao: colunas[7] ? colunas[7].trim() : "",
+                        documentacaoDisponibilizada: colunas[8] ? colunas[8].trim() : "",
+                        valorCobrado: parseValor(colunas[9]),
+                        horasTrabalhadas: parseInt(colunas[10]) || 0,
+                        observacoes: colunas[11] ? colunas[11].trim() : "", // Captura observações extensas com parágrafos intactos
+                        dataEntrega: parseData(colunas[12]),
+                        dataPagamento: parseData(colunas[13]),
+                        concluido: parseBool(colunas[14]),
+                        impugnado: parseBool(colunas[15])
+                    };
 
-                const novoProcesso = {
-                    id: Math.random().toString(36).substring(2, 9),
-                    realizador: colunas[0] ? colunas[0].trim() : "",
-                    numeroProcesso: colunas[1] ? colunas[1].trim() : "Pendente/Sem Número",
-                    parte: colunas[2] ? colunas[2].trim() : "",
-                    reu: colunas[3] ? colunas[3].trim() : "",
-                    advogada: colunas[4] ? colunas[4].trim() : "",
-                    dataSolicitada: parseData(colunas[5]),
-                    orgaoJulgador: colunas[6] ? colunas[6].trim() : "",
-                    tipoAcao: colunas[7] ? colunas[7].trim() : "",
-                    documentacaoDisponibilizada: colunas[8] ? colunas[8].trim() : "",
-                    valorCobrado: parseValor(colunas[9]),
-                    horasTrabalhadas: parseInt(colunas[10]) || 0,
-                    observacoes: colunas[11] ? colunas[11].trim() : "",
-                    dataEntrega: parseData(colunas[12]),
-                    dataPagamento: parseData(colunas[13]),
-                    concluido: parseBool(colunas[14]),
-                    impugnado: parseBool(colunas[15])
-                };
+                    this.db.processes.push(novoProcesso);
+                    importados++;
+                }
 
-                this.db.processes.push(novoProcesso);
-                importados++;
+                if (importados > 0) {
+                    this.registrarLog("IMPORTAÇÃO LOTE", `Injetados ${importados} registros em lote via PapaParse.`);
+                    this.hasUnsavedChanges = true;
+                    this.salvarLocalStorage();
+                    this.init();
+                    alert(`Sucesso! Foram importados ${importados} cálculos sem quebras relacionais.`);
+                } else {
+                    alert("Formato incompatível detectado na varredura do arquivo.");
+                }
+            },
+            error: () => {
+                alert("Erro estrutural ao analisar arquivo CSV.");
             }
-
-            if (importados > 0) {
-                this.registrarLog("IMPORTAÇÃO LOTE", `Migração de ${importados} processos via planilha Excel (CSV).`);
-                this.hasUnsavedChanges = true;
-                this.salvarLocalStorage();
-                this.init();
-                alert(`Carga concluída com sucesso! ${importados} processos foram injetados no sistema.`);
-            } else {
-                alert("Nenhum dado válido lido. Verifique se salvou a planilha como 'CSV (separado por vírgulas)'.");
-            }
-            event.target.value = '';
-        };
-        leitor.readAsText(arquivo, 'ISO-8859-1'); 
+        });
+        event.target.value = '';
     }
 
+    // OPERAÇÕES DO FORMULÁRIO DE CADASTRO
     salvarProcesso(voltarParaLista = true) {
         const numProc = document.getElementById("numeroProcesso").value.trim();
         const parte = document.getElementById("parte").value.trim();
         const reu = document.getElementById("reu").value.trim();
 
         if (!numProc || !parte || !reu) {
-            alert("Por favor, preencha os campos obrigatórios (Processo, Parte Autora e Réu).");
+            alert("Campos obrigatórios pendentes.");
             return;
         }
 
@@ -311,16 +321,16 @@ class JudicialTechERP {
             horasTrabalhadas: parseInt(document.getElementById("horasTrabalhadas").value) || 0,
             concluido: document.getElementById("concluido").checked,
             impugnado: document.getElementById("impugnado").checked,
-            observacoes: document.getElementById("observacoes").value
+            observacoes: this.observacoesRichHTML // Associa o texto rico capturado do Modal
         };
 
         if (idExistente) {
             const index = this.db.processes.findIndex(p => p.id === idExistente);
             if (index >= 0) this.db.processes[index] = processoObj;
-            this.registrarLog("ALTERAÇÃO", `Processo CNJ ${numProc} atualizado no sistema.`);
+            this.registrarLog("ALTERAÇÃO", `Processo CNJ ${numProc} atualizado.`);
         } else {
             this.db.processes.push(processObj);
-            this.registrarLog("INCLUSÃO", `Novo processo CNJ ${numProc} adicionado ao escopo.`);
+            this.registrarLog("INCLUSÃO", `Novo processo CNJ ${numProc} adicionado.`);
         }
 
         this.hasUnsavedChanges = true;
@@ -356,7 +366,9 @@ class JudicialTechERP {
         document.getElementById("horasTrabalhadas").value = p.horasTrabalhadas || 0;
         document.getElementById("concluido").checked = p.concluido;
         document.getElementById("impugnado").checked = p.impugnado;
-        document.getElementById("observacoes").value = p.observacoes || "";
+        
+        // Injeta string HTML no buffer de texto rico
+        this.observacoesRichHTML = p.observacoes || "";
 
         document.getElementById("cadastro-titulo").innerText = "Editar Registro de Cálculo";
         
@@ -381,7 +393,7 @@ class JudicialTechERP {
 
     deletarProcesso() {
         const id = document.getElementById("processoId").value;
-        if (id && confirm("Tem a certeza absoluta que deseja remover este cálculo permanentemente da base?")) {
+        if (id && confirm("Deseja remover este cálculo permanentemente da base?")) {
             this.db.processes = this.db.processes.filter(p => p.id !== id);
             this.registrarLog("EXCLUSÃO", `Um processo em lote foi removido de forma definitiva.`);
             this.hasUnsavedChanges = true;
@@ -395,11 +407,36 @@ class JudicialTechERP {
         const form = document.getElementById("formProcesso");
         if (form) form.reset();
         document.getElementById("processoId").value = "";
+        this.observacoesRichHTML = "";
         document.getElementById("cadastro-titulo").innerText = "Novo Cadastro de Cálculo";
         const btnExc = document.getElementById("btnExcluir");
         if (btnExc) btnExc.style.display = "none";
         const pTimeline = document.getElementById("painelTimelineProcesso");
         if (pTimeline) pTimeline.style.display = "none";
+    }
+
+    // OPERAÇÕES DO TEXTO RICO POP-UP (MODAL)
+    abrirModalObservacoes() {
+        const modal = document.getElementById("modalObservacoes");
+        const editor = document.getElementById("editorObservacoesRich");
+        if (modal && editor) {
+            editor.innerHTML = this.observacoesRichHTML;
+            modal.style.display = "flex";
+        }
+    }
+
+    salvarModalObservacoes() {
+        const editor = document.getElementById("editorObservacoesRich");
+        if (editor) {
+            this.observacoesRichHTML = editor.innerHTML;
+            this.marcarModificado();
+        }
+        this.fecharModalObservacoes();
+    }
+
+    fecharModalObservacoes() {
+        const modal = document.getElementById("modalObservacoes");
+        if (modal) modal.style.display = "none";
     }
 
     atualizarTimelineIndividual() {
@@ -427,6 +464,7 @@ class JudicialTechERP {
         }
     }
 
+    // MÓDULO FINANCEIRO CORRIGIDO E AGREGADORES
     renderizarDashboard() {
         const lista = this.db.processes;
         let faturado = 0, recebido = 0, pendentes = 0, concluidos = 0, impugnados = 0, horas = 0;
@@ -458,7 +496,7 @@ class JudicialTechERP {
         safeSetText("kpi-mediahoras", lista.length ? (horas / lista.length).toFixed(1) + "h" : "0h");
 
         safeSetText("fin-contas-receber", this.formatarMoeda(faturado - recebido));
-        safeSetText("fin-atraso", this.formatarMoeda(pendentes > 0 ? (faturado - recebido) * 0.25 : 0));
+        safeSetText("fin-atraso", this.formatarMoeda(pendentes > 0 ? (faturado - recebido) * 0.20 : 0));
         safeSetText("fin-previsao", this.formatarMoeda(faturado - recebido));
 
         this.desenharGrafico("chart-realizador", realizadores);
@@ -469,11 +507,13 @@ class JudicialTechERP {
         const tbodyFin = document.getElementById("tbodyFinanceiro");
         if (tbodyFin) {
             tbodyFin.innerHTML = "";
-            lista.filter(p => !p.dataPagamento).forEach(p => {
+            // Filtra faturas em aberto baseado na ausência da data de pagamento
+            lista.filter(p => !p.dataPagamento || p.dataPagamento.trim() === "").forEach(p => {
+                const dtEnt = p.dataEntrega ? p.dataEntrega.split("-").reverse().join("/") : "Pendente";
                 tbodyFin.innerHTML += `<tr>
                     <td><b>${p.numeroProcesso}</b></td>
                     <td>${p.parte} x ${p.reu}</td>
-                    <td>${p.dataEntrega ? p.dataEntrega.split("-").reverse().join("/") : "Pendente"}</td>
+                    <td>${dtEnt}</td>
                     <td style="font-weight:700; color:var(--color-primary)">${this.formatarMoeda(p.valorCobrado)}</td>
                 </tr>`;
             });
@@ -510,6 +550,7 @@ class JudicialTechERP {
         this.renderizarGrid();
     }
 
+    // RENDERIZAÇÃO DO GRID COM BOTÃO DE AÇÃO "ABRIR" EXPLÍCITO
     renderizarGrid() {
         const tbody = document.getElementById("tbodyProcessos");
         if (!tbody) return;
@@ -523,7 +564,7 @@ class JudicialTechERP {
         const fImpugnado = document.getElementById("filtroImpugnado")?.value || "TODOS";
 
         let resultados = this.db.processes.filter(p => {
-            if (gSearch && !p.numeroProcesso.toLowerCase().includes(gSearch) && !p.parte.toLowerCase().includes(gSearch) && !p.reu.toLowerCase().includes(gSearch) && !p.advogada.toLowerCase().includes(gSearch)) return false;
+            if (gSearch && !p.numeroProcesso.toLowerCase().includes(gSearch) && !p.parte.toLowerCase().includes(gSearch) && !p.reu.toLowerCase().includes(gSearch) && !p.advogada.toLowerCase().includes(gSearch) && !p.tipoAcao.toLowerCase().includes(gSearch)) return false;
             if (fParte && !p.parte.toLowerCase().includes(fParte)) return false;
             if (fReu && !p.reu.toLowerCase().includes(fReu)) return false;
             if (fRealizador && !p.realizador.toLowerCase().includes(fRealizador)) return false;
@@ -539,8 +580,8 @@ class JudicialTechERP {
 
         if (this.ordemColuna) {
             resultados.sort((a, b) => {
-                let valA = a[this.ordemColuna];
-                let valB = b[this.ordemColuna];
+                let valA = a[this.ordemColuna] || "";
+                let valB = b[this.ordemColuna] || "";
                 if (typeof valA === "string") {
                     return this.ordemDirecao === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
                 } else {
@@ -550,21 +591,31 @@ class JudicialTechERP {
         }
 
         resultados.forEach(p => {
-            tbody.innerHTML += `<tr ondblclick="app.editarProcesso('${p.id}')">
+            const dtSoli = p.dataSolicitada ? p.dataSolicitada.split("-").reverse().join("/") : "-";
+            const dtEnt = p.dataEntrega ? p.dataEntrega.split("-").reverse().join("/") : "-";
+
+            tbody.innerHTML += `<tr>
                 <td style="font-weight:700; color:var(--color-primary-dark)">${p.numeroProcesso}</td>
                 <td>${p.parte}</td>
                 <td>${p.reu}</td>
+                <td>${p.advogada || "-"}</td>
                 <td>${p.tipoAcao || "-"}</td>
-                <td style="font-weight:600">${this.formatarMoeda(p.valorCobrado)}</td>
+                <td>${dtSoli}</td>
+                <td>${dtEnt}</td>
                 <td>
                     <span class="chip ${p.concluido ? "chip-success" : "chip-danger"}">${p.concluido ? "Concluído" : "Em aberto"}</span>
                     ${p.impugnado ? '<span class="chip chip-danger" style="margin-left:5px">Impugnado</span>' : ''}
+                </td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="app.editarProcesso('${p.id}')">
+                        <i class="fa-solid fa-folder-open"></i> Abrir
+                    </button>
                 </td>
             </tr>`;
         });
 
         if (resultados.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 30px; color:var(--color-text-secondary)">Nenhum cálculo processual localizado.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 30px; color:var(--color-text-secondary)">Nenhum cálculo processual localizado para os critérios aplicados.</td></tr>`;
         }
     }
 
